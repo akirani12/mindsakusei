@@ -1,0 +1,7 @@
+Original requirement: {reqcons}
+Character/Persona: {qchar}
+Refined keywords: {rkw_output}
+Scenarios: {scn_output}
+Alternatives: {alt_output}
+
+Generate a comprehensive mindmap in Markdown format.

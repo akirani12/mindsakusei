@@ -1,0 +1,5 @@
+Original requirement: {reqcons}
+Character/Persona: {qchar}
+Extracted keywords: {kw_output}
+
+Refine and expand these keywords.

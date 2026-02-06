@@ -1,0 +1,4 @@
+Requirement: {reqcons}
+Character/Persona: {qchar}
+
+Extract keywords from the above requirement.

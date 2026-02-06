@@ -1,0 +1,5 @@
+Original requirement: {reqcons}
+Character/Persona: {qchar}
+Scenarios: {scn_output}
+
+Generate alternatives and considerations.

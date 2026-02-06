@@ -1,0 +1,5 @@
+Original requirement: {reqcons}
+Character/Persona: {qchar}
+Refined keywords: {rkw_output}
+
+Generate scenarios.
