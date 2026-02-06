@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mindmap_api.llm.base import LLMResponse
+
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
@@ -24,7 +26,12 @@ def mock_llm():
     async def _chat(system, user, *, model=None, temperature=None, timeout=None):
         nonlocal call_count
         call_count += 1
-        return f"mock-output-{call_count}"
+        return LLMResponse(
+            content=f"mock-output-{call_count}",
+            prompt_tokens=10,
+            completion_tokens=20,
+            total_tokens=30,
+        )
 
     mock_client.chat.side_effect = _chat
     return mock_client
@@ -33,18 +40,18 @@ def mock_llm():
 @pytest.fixture()
 async def client(mock_llm):
     """Async test client – manually inject settings and mock LLM."""
-    import mindmap_api.app as app_module
-    from mindmap_api.app import app
+    import mindmap_api.main as main_module
+    from mindmap_api.main import app
     from mindmap_api.config import Settings
     from mindmap_api.logging_setup import setup_logging
 
     setup_logging()
-    app_module._settings = Settings()  # type: ignore[call-arg]
-    app_module._llm_client = mock_llm
+    main_module._settings = Settings()  # type: ignore[call-arg]
+    main_module._llm_client = mock_llm
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
 
-    app_module._settings = None
-    app_module._llm_client = None
+    main_module._settings = None
+    main_module._llm_client = None

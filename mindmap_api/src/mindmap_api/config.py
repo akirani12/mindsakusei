@@ -8,7 +8,7 @@ from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_PACKAGE_DIR = Path(__file__).resolve().parent
 
 
 class NodeConfig(BaseSettings):
@@ -31,23 +31,24 @@ class Settings(BaseSettings):
     )
 
     # --- LLM defaults ---
-    llm_default_model: str = Field("gpt-4o-mini", description="Default model name")
+    llm_default_model: str = Field("gpt-5.1", description="Default model name")
     llm_default_temperature: float = Field(0.7, description="Default temperature")
     llm_timeout_seconds: int = Field(60, description="Per-call timeout for LLM")
 
     # --- Per-node overrides (env: NODE_KW__MODEL, NODE_KW__TEMPERATURE …) ---
+    # DSL温度: KW=0.7, RKW=0.7, SCN=0.7, ALT=0.4, MAP=0.3
     node_kw: NodeConfig = Field(default_factory=NodeConfig)
     node_rkw: NodeConfig = Field(default_factory=NodeConfig)
     node_scn: NodeConfig = Field(default_factory=NodeConfig)
-    node_alt: NodeConfig = Field(default_factory=NodeConfig)
-    node_map: NodeConfig = Field(default_factory=NodeConfig)
+    node_alt: NodeConfig = Field(default_factory=lambda: NodeConfig(temperature=0.4))
+    node_map: NodeConfig = Field(default_factory=lambda: NodeConfig(temperature=0.3))
 
     # --- Workflow ---
     api_timeout_seconds: int = Field(180, description="Overall API timeout")
 
     # --- Prompts ---
     prompts_dir: Path = Field(
-        default=_PROJECT_ROOT / "prompts",
+        default=_PACKAGE_DIR / "prompts",
         description="Directory containing prompt .txt files",
     )
 

@@ -5,23 +5,13 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from ..config import NodeConfig, Settings
-from ..llm_client import BaseLLMClient
-from ..prompts import load_prompt
+from ..llm.base import BaseLLMClient, LLMResponse
+from .validators import check_keywords_count, check_min_items, check_not_empty
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class StepDef:
-    """Definition of a single workflow step."""
-
-    name: str  # e.g. "kw"
-    system_prompt: str  # template name for system (without .txt)
-    user_prompt: str  # template name for user (without .txt)
-    node_config: NodeConfig = field(default_factory=NodeConfig)
 
 
 @dataclass
@@ -30,37 +20,35 @@ class WorkflowResult:
     step_outputs: dict[str, str] = field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# Retry wrapper
+# ---------------------------------------------------------------------------
+
 async def _call_with_retry(
-    client: BaseLLMClient,
-    system: str,
-    user: str,
-    *,
-    model: Optional[str],
-    temperature: Optional[float],
-    timeout: Optional[int],
+    fn: Callable[..., Awaitable[LLMResponse]],
+    *args: Any,
     step_name: str,
     request_id: str,
-) -> str:
-    """Call LLM with a single retry on failure."""
+    **kwargs: Any,
+) -> LLMResponse:
+    """Call *fn* with a single retry on failure. Logs elapsed time and token usage."""
     for attempt in (1, 2):
         try:
             t0 = time.monotonic()
-            result = await client.chat(
-                system,
-                user,
-                model=model,
-                temperature=temperature,
-                timeout=timeout,
-            )
+            resp = await fn(*args, **kwargs)
             elapsed = time.monotonic() - t0
+            token_info = ""
+            if resp.total_tokens is not None:
+                token_info = f" tokens={resp.total_tokens}(p={resp.prompt_tokens},c={resp.completion_tokens})"
             logger.info(
-                "step=%s attempt=%d elapsed=%.2fs ok",
+                "step=%s attempt=%d elapsed=%.2fs ok%s",
                 step_name,
                 attempt,
                 elapsed,
+                token_info,
                 extra={"request_id": request_id},
             )
-            return result
+            return resp
         except Exception:
             if attempt == 2:
                 logger.exception(
@@ -76,9 +64,12 @@ async def _call_with_retry(
                 attempt,
                 extra={"request_id": request_id},
             )
-    # unreachable
-    raise RuntimeError("retry logic error")
+    raise RuntimeError("retry logic error")  # unreachable
 
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
 
 async def run_workflow(
     settings: Settings,
@@ -88,60 +79,75 @@ async def run_workflow(
     ppc: str,
     request_id: str,
 ) -> WorkflowResult:
-    """Execute the full KW→RKW→SCN→ALT→MAP pipeline."""
+    """Execute the full KW→RKW→SCN→ALT→MAP pipeline using step functions."""
+    from .steps import (
+        extract_keywords,
+        derive_factors,
+        generate_alternatives,
+        generate_mindmap,
+        generate_scenarios,
+    )
 
-    steps: list[StepDef] = [
-        StepDef("kw", "kw_system", "kw_user", settings.node_kw),
-        StepDef("rkw", "rkw_system", "rkw_user", settings.node_rkw),
-        StepDef("scn", "scn_system", "scn_user", settings.node_scn),
-        StepDef("alt", "alt_system", "alt_user", settings.node_alt),
-        StepDef("map", "map_system", "map_user", settings.node_map),
-    ]
+    def _node_kwargs(nc: NodeConfig) -> dict:
+        return dict(model=nc.model, temperature=nc.temperature, timeout=settings.llm_timeout_seconds)
 
     outputs: dict[str, str] = {}
-    render_vars: dict[str, str] = {"reqcons": reqcons, "qchar": qchar, "ppc": ppc}
 
-    for step in steps:
-        # Render prompts with all accumulated outputs
-        system_text = load_prompt(settings.prompts_dir, step.system_prompt, **render_vars)
-        user_text = load_prompt(settings.prompts_dir, step.user_prompt, **render_vars)
+    # --- KW ---
+    resp = await _call_with_retry(
+        extract_keywords, client, settings.prompts_dir, reqcons,
+        step_name="kw", request_id=request_id,
+        **_node_kwargs(settings.node_kw),
+    )
+    outputs["kw"] = resp.content
+    check_keywords_count(resp.content, request_id=request_id)
 
-        result = await _call_with_retry(
-            client,
-            system_text,
-            user_text,
-            model=step.node_config.model,
-            temperature=step.node_config.temperature,
-            timeout=settings.llm_timeout_seconds,
-            step_name=step.name,
-            request_id=request_id,
-        )
+    # --- RKW ---
+    resp = await _call_with_retry(
+        derive_factors, client, settings.prompts_dir, reqcons, outputs["kw"],
+        step_name="rkw", request_id=request_id,
+        **_node_kwargs(settings.node_rkw),
+    )
+    outputs["rkw"] = resp.content
+    check_min_items(resp.content, min_expected=20, step_name="RKW", request_id=request_id)
 
-        outputs[step.name] = result
-        render_vars[f"{step.name}_output"] = result
+    # --- SCN ---
+    resp = await _call_with_retry(
+        generate_scenarios, client, settings.prompts_dir, reqcons, outputs["rkw"],
+        step_name="scn", request_id=request_id,
+        **_node_kwargs(settings.node_scn),
+    )
+    outputs["scn"] = resp.content
+    check_min_items(resp.content, min_expected=15, step_name="SCN", request_id=request_id)
 
-    mindmap = outputs.get("map", "")
+    # --- ALT ---
+    resp = await _call_with_retry(
+        generate_alternatives, client, settings.prompts_dir, reqcons, outputs["rkw"], outputs["scn"],
+        step_name="alt", request_id=request_id,
+        **_node_kwargs(settings.node_alt),
+    )
+    outputs["alt"] = resp.content
+
+    # --- MAP ---
+    resp = await _call_with_retry(
+        generate_mindmap, client, settings.prompts_dir,
+        reqcons, qchar, ppc, outputs["kw"], outputs["rkw"], outputs["scn"], outputs["alt"],
+        step_name="map", request_id=request_id,
+        **_node_kwargs(settings.node_map),
+    )
+    outputs["map"] = resp.content
 
     # Validation: if final output empty, retry MAP once more
-    if not mindmap.strip():
-        logger.warning(
-            "MAP output empty, retrying MAP step",
-            extra={"request_id": request_id},
+    if not check_not_empty(outputs["map"], step_name="MAP", request_id=request_id):
+        logger.warning("MAP output empty, retrying MAP step", extra={"request_id": request_id})
+        resp = await _call_with_retry(
+            generate_mindmap, client, settings.prompts_dir,
+            reqcons, qchar, ppc, outputs["kw"], outputs["rkw"], outputs["scn"], outputs["alt"],
+            step_name="map_retry", request_id=request_id,
+            **_node_kwargs(settings.node_map),
         )
-        map_step = steps[-1]
-        system_text = load_prompt(settings.prompts_dir, map_step.system_prompt, **render_vars)
-        user_text = load_prompt(settings.prompts_dir, map_step.user_prompt, **render_vars)
-        mindmap = await _call_with_retry(
-            client,
-            system_text,
-            user_text,
-            model=map_step.node_config.model,
-            temperature=map_step.node_config.temperature,
-            timeout=settings.llm_timeout_seconds,
-            step_name="map_retry",
-            request_id=request_id,
-        )
-        if not mindmap.strip():
+        outputs["map"] = resp.content
+        if not outputs["map"].strip():
             raise RuntimeError("MAP step returned empty output after retry")
 
-    return WorkflowResult(mindmap_markdown=mindmap, step_outputs=outputs)
+    return WorkflowResult(mindmap_markdown=outputs["map"], step_outputs=outputs)

@@ -1,32 +1,35 @@
-"""LLM client abstraction – OpenAI today, Azure OpenAI tomorrow."""
+"""OpenAI / Azure OpenAI implementations of BaseLLMClient."""
 
 from __future__ import annotations
 
-import abc
 import logging
 from typing import Optional
 
 import openai
 
-from .config import Settings
+from ..config import Settings
+from .base import BaseLLMClient, LLMResponse
 
 logger = logging.getLogger(__name__)
 
 
-class BaseLLMClient(abc.ABC):
-    """Thin abstraction so the provider can be swapped via config."""
+def _build_messages(system: str, user: str) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    if system.strip():
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": user})
+    return messages
 
-    @abc.abstractmethod
-    async def chat(
-        self,
-        system: str,
-        user: str,
-        *,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        timeout: Optional[int] = None,
-    ) -> str:
-        """Return the assistant message content."""
+
+def _extract_response(resp) -> LLMResponse:
+    content = resp.choices[0].message.content or ""
+    usage = resp.usage
+    return LLMResponse(
+        content=content,
+        prompt_tokens=usage.prompt_tokens if usage else None,
+        completion_tokens=usage.completion_tokens if usage else None,
+        total_tokens=usage.total_tokens if usage else None,
+    )
 
 
 class OpenAIClient(BaseLLMClient):
@@ -45,19 +48,14 @@ class OpenAIClient(BaseLLMClient):
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         timeout: Optional[int] = None,
-    ) -> str:
-        messages: list[dict[str, str]] = []
-        if system.strip():
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": user})
+    ) -> LLMResponse:
         resp = await self._client.chat.completions.create(
             model=model or self._settings.llm_default_model,
-            messages=messages,
+            messages=_build_messages(system, user),
             temperature=temperature if temperature is not None else self._settings.llm_default_temperature,
             timeout=timeout or self._settings.llm_timeout_seconds,
         )
-        content = resp.choices[0].message.content or ""
-        return content
+        return _extract_response(resp)
 
 
 class AzureOpenAIClient(BaseLLMClient):
@@ -79,19 +77,14 @@ class AzureOpenAIClient(BaseLLMClient):
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         timeout: Optional[int] = None,
-    ) -> str:
-        messages: list[dict[str, str]] = []
-        if system.strip():
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": user})
+    ) -> LLMResponse:
         resp = await self._client.chat.completions.create(
             model=model or self._settings.azure_openai_deployment or self._settings.llm_default_model,
-            messages=messages,
+            messages=_build_messages(system, user),
             temperature=temperature if temperature is not None else self._settings.llm_default_temperature,
             timeout=timeout or self._settings.llm_timeout_seconds,
         )
-        content = resp.choices[0].message.content or ""
-        return content
+        return _extract_response(resp)
 
 
 def create_llm_client(settings: Settings) -> BaseLLMClient:

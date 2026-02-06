@@ -6,32 +6,17 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Header, HTTPException
 
+from .auth import verify_api_key
 from .config import Settings
-from .llm_client import BaseLLMClient, create_llm_client
+from .llm import BaseLLMClient, create_llm_client
 from .logging_setup import setup_logging
+from .schemas import GenerateRequest, GenerateResponse
 from .workflow.runner import run_workflow
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
-
-
-class GenerateRequest(BaseModel):
-    reqcons: str = Field(..., max_length=1000)
-    qchar: str = Field(default="")
-    ppc: Optional[str] = Field(default=None)
-
-
-class GenerateResponse(BaseModel):
-    mindmap_markdown: str
-
 
 # ---------------------------------------------------------------------------
 # App state (populated during lifespan)
@@ -55,17 +40,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Mindmap Generator API", version="0.1.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
-# Auth dependency
-# ---------------------------------------------------------------------------
-
-
-def _verify_api_key(x_api_key: str = Header(...)) -> None:
-    assert _settings is not None
-    if x_api_key != _settings.app_api_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-
-# ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
 
@@ -73,7 +47,6 @@ def _verify_api_key(x_api_key: str = Header(...)) -> None:
 @app.post(
     "/v1/mindmap/generate",
     response_model=GenerateResponse,
-    dependencies=[],
 )
 async def generate_mindmap(
     body: GenerateRequest,
@@ -81,7 +54,7 @@ async def generate_mindmap(
 ) -> GenerateResponse:
     assert _settings is not None and _llm_client is not None
 
-    _verify_api_key(x_api_key)
+    verify_api_key(_settings, x_api_key)
 
     request_id = uuid.uuid4().hex[:12]
     logger.info(
