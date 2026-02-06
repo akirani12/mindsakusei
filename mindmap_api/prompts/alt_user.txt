@@ -1,5 +1,13 @@
-Original requirement: {reqcons}
-Character/Persona: {qchar}
-Scenarios: {scn_output}
+以下の要件文・因子・利用シナリオを踏まえ、代替シナリオや例外系、誤操作、環境異常など「通常と異なるケース」を最大18件、箇条書きで列挙してください。
+各行は20〜35文字程度にしてください。
+カテゴリは次の4種類のいずれかを行頭に付けてください：
+【代替】 / 【例外】 / 【誤操作】 / 【環境異常】
 
-Generate alternatives and considerations.
+要件文：
+{reqcons}
+
+因子：
+{rkw_output}
+
+利用シナリオ：
+{scn_output}

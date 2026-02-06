@@ -1,7 +1,16 @@
-Original requirement: {reqcons}
-Character/Persona: {qchar}
-Refined keywords: {rkw_output}
-Scenarios: {scn_output}
-Alternatives: {alt_output}
+要件文：
+{reqcons}
 
-Generate a comprehensive mindmap in Markdown format.
+品質特性指定（任意）：
+{qchar}
+
+観点数（ppc）：
+{ppc}
+
+内部参照（出力しない）：
+- keywords: {kw_output}
+- factors: {rkw_output}
+- scenarios: {scn_output}
+- alternatives: {alt_output}
+
+上記を踏まえ、Obsidian Mindmap用Markdownを出力してください。

@@ -85,6 +85,7 @@ async def run_workflow(
     client: BaseLLMClient,
     reqcons: str,
     qchar: str,
+    ppc: str,
     request_id: str,
 ) -> WorkflowResult:
     """Execute the full KW→RKW→SCN→ALT→MAP pipeline."""
@@ -98,7 +99,7 @@ async def run_workflow(
     ]
 
     outputs: dict[str, str] = {}
-    render_vars: dict[str, str] = {"reqcons": reqcons, "qchar": qchar}
+    render_vars: dict[str, str] = {"reqcons": reqcons, "qchar": qchar, "ppc": ppc}
 
     for step in steps:
         # Render prompts with all accumulated outputs

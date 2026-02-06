@@ -1,5 +1,9 @@
-Original requirement: {reqcons}
-Character/Persona: {qchar}
-Refined keywords: {rkw_output}
+以下の「要件文」と「因子」を踏まえ、利用シナリオ（使い方・利用状況）をできるだけ多く箇条書きで生成してください。
+目標：少なくとも15件。
+必ず「スマホ連携」を含むシナリオを複数入れてください。
 
-Generate scenarios.
+要件文：
+{reqcons}
+
+因子：
+{rkw_output}

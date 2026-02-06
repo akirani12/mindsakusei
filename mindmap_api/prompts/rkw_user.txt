@@ -1,5 +1,9 @@
-Original requirement: {reqcons}
-Character/Persona: {qchar}
-Extracted keywords: {kw_output}
+以下の「要件文」と「キーワード群」から、品質・価値・機能・条件などの因子を具体化し、箇条書きで列挙してください。
+各因子は名詞句にしてください。
+目標：最低20個。
 
-Refine and expand these keywords.
+要件文：
+{reqcons}
+
+キーワード群：
+{kw_output}

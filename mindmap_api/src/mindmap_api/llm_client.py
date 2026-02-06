@@ -46,12 +46,13 @@ class OpenAIClient(BaseLLMClient):
         temperature: Optional[float] = None,
         timeout: Optional[int] = None,
     ) -> str:
+        messages: list[dict[str, str]] = []
+        if system.strip():
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": user})
         resp = await self._client.chat.completions.create(
             model=model or self._settings.llm_default_model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            messages=messages,
             temperature=temperature if temperature is not None else self._settings.llm_default_temperature,
             timeout=timeout or self._settings.llm_timeout_seconds,
         )
@@ -79,12 +80,13 @@ class AzureOpenAIClient(BaseLLMClient):
         temperature: Optional[float] = None,
         timeout: Optional[int] = None,
     ) -> str:
+        messages: list[dict[str, str]] = []
+        if system.strip():
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": user})
         resp = await self._client.chat.completions.create(
             model=model or self._settings.azure_openai_deployment or self._settings.llm_default_model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            messages=messages,
             temperature=temperature if temperature is not None else self._settings.llm_default_temperature,
             timeout=timeout or self._settings.llm_timeout_seconds,
         )

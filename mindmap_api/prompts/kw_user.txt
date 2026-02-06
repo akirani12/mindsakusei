@@ -1,4 +1,6 @@
-Requirement: {reqcons}
-Character/Persona: {qchar}
+「要件文」から主要キーワードを抽出してください。可能なら10個以内に収めてください。
+出力はカンマ区切りで返してください。文章は不要です。
+名詞や名詞句を優先してください。
 
-Extract keywords from the above requirement.
+要件文：
+{reqcons}

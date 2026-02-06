@@ -98,6 +98,7 @@ async def generate_mindmap(
                 _llm_client,
                 reqcons=body.reqcons,
                 qchar=body.qchar,
+                ppc=body.ppc or "",
                 request_id=request_id,
             ),
             timeout=_settings.api_timeout_seconds,
