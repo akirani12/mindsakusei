@@ -58,3 +58,11 @@ async def test_workflow_produces_nonempty_output(client):
     )
     assert resp.status_code == 200
     assert resp.json()["mindmap_markdown"] != ""
+
+
+@pytest.mark.asyncio
+async def test_ui_returns_html(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Mindmap Generator" in resp.text

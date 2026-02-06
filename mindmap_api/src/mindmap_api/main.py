@@ -1,4 +1,4 @@
-"""FastAPI application – POST /v1/mindmap/generate."""
+"""FastAPI application – POST /v1/mindmap/generate + Web UI."""
 
 from __future__ import annotations
 
@@ -6,8 +6,11 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from .auth import verify_api_key
 from .config import Settings
@@ -15,6 +18,8 @@ from .llm import BaseLLMClient, create_llm_client
 from .logging_setup import setup_logging
 from .schemas import GenerateRequest, GenerateResponse
 from .workflow.runner import run_workflow
+
+_PACKAGE_DIR = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +45,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Mindmap Generator API", version="0.1.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
-# Endpoint
+# Static files & Web UI
+# ---------------------------------------------------------------------------
+
+app.mount("/static", StaticFiles(directory=_PACKAGE_DIR / "static"), name="static")
+
+_index_html = (_PACKAGE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def ui():
+    return _index_html
+
+
+# ---------------------------------------------------------------------------
+# API Endpoint
 # ---------------------------------------------------------------------------
 
 
