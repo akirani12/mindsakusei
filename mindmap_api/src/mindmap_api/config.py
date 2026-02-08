@@ -9,6 +9,15 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _PACKAGE_DIR.parents[2]  # mindmap_api/
+
+
+def _find_env_file() -> Optional[Path]:
+    """Search for .env: project root first, then CWD."""
+    for candidate in [_PROJECT_ROOT / ".env", Path.cwd() / ".env"]:
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 class NodeConfig(BaseSettings):
@@ -19,7 +28,12 @@ class NodeConfig(BaseSettings):
 
 
 class Settings(BaseSettings):
-    model_config = {"env_prefix": "", "env_nested_delimiter": "__"}
+    model_config = {
+        "env_prefix": "",
+        "env_nested_delimiter": "__",
+        "env_file": _find_env_file(),
+        "env_file_encoding": "utf-8",
+    }
 
     # --- API ---
     app_api_key: str = Field(..., description="API key for X-API-Key auth")
