@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         "env_prefix": "",
         "env_nested_delimiter": "__",
         "env_file": _find_env_file(),
-        "env_file_encoding": "utf-8",
+        "env_file_encoding": "utf-8-sig",  # utf-8-sig strips Windows BOM
     }
 
     # --- API ---
